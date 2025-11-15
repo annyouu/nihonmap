@@ -265,22 +265,6 @@ export default function WalkMap() {
             attribution="&copy; OpenStreetMap contributors"
           />
 
-          {/* エッジ描画 */}
-          {/* {edges.map((edge, index) => {
-            const positions: [number, number][] = [
-              [edge.from.lat, edge.from.lng],
-              [edge.to.lat, edge.to.lng],
-            ];
-            return (
-              <Polyline
-                key={`edge-${index}`} 
-                positions={positions}
-                color="gray"
-                weight={3}
-              />
-            );
-          })} */}
-
           {graphNodes.map((node) => (
                 <Marker
                     key={`node-${node.id}`}
