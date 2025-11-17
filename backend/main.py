@@ -38,8 +38,6 @@ def densify_curved_edges(G):
     global NEW_NODE_ID_COUNTER 
     edges_to_modify = []
     
-    # データをコピーしてからイテレート
-    # 💡 G.edges()の引数を修正: keys=Trueは不要な場合があるが、既存のロジックに合わせる
     for u, v, key, data in list(G.edges(keys=True, data=True)): 
         if 'geometry' in data and data['geometry'] is not None:
             geom = data['geometry']
@@ -106,8 +104,7 @@ def connect_nearby_nodes_wrapper(G, threshold):
                 
     print(f"近接ノード接続完了: {added_count}本の近接エッジを追加。")
 
-# 💡 グラフ初期化ブロック（修正箇所）
-# ----------------------------------------------------
+# グラフ初期化ブロック（修正箇所）
 G = ox.graph_from_place(PLACE_NAME, network_type=NETWORK_TYPE, simplify=False)
 print("Graph loaded with original settings.")
 
@@ -124,11 +121,10 @@ connect_nearby_nodes_wrapper(G, NEARBY_NODE_THRESHOLD)
 # 4. 速度・時間の追加 (OSMnxバージョン依存とValueErrorを回避)
 # 速度が不明なエッジに歩行速度(4.8 km/h)をフォールバックとして設定
 G = ox.add_edge_speeds(G, fallback=4.8) 
-# G = ox.add_edge_travel_times(G) の代わりに、旧バージョンに対応した関数を使用
+# G = ox.add_edge_travel_times(G)
 G = ox.add_edge_travel_times(G) 
 
 print(f"Graph loaded and connected: nodes={len(G.nodes)}, edges={len(G.edges)}")
-# ----------------------------------------------------
 
 
 # APIモデル (変更なし)
@@ -159,11 +155,11 @@ def get_nodes():
         })
     return {"nodes": nodes_list}
 
-# エッジ取得API (変更なし)
+# エッジ取得API
 @app.get("/api/edges")
 def get_edges():
     edges = []
-    # 💡 Q学習で生成されたエッジも含むように変更は不要
+    # Q学習で生成されたエッジも含むように変更は不要
     for u, v, data in G.edges(data=True):
         edges.append({
             "from": {"lat": G.nodes[u]["y"], "lng": G.nodes[u]["x"]},
@@ -173,12 +169,12 @@ def get_edges():
     return {"edges": edges}
 
 
-# 💡 ノード取得API (フロントエンドの要望に応じた新規追加)
+# ノード取得API
 @app.get("/api/nodes")
 def get_nodes():
     """OSMnxグラフ全体のノード座標を返す"""
     nodes_list = []
-    # 💡 Q学習で生成されたノードも含む
+    # Q学習で生成されたノードも含む
     for node_id, data in G.nodes(data=True):
         nodes_list.append({
             "id": node_id,
@@ -188,7 +184,7 @@ def get_nodes():
     return {"nodes": nodes_list}
 
 
-# 経路探索API (Q学習 + フォールバック) (変更なし)
+# 経路探索API
 @app.post("/api/train")
 def train_route(req: TrainRequest):
     # 1. ユーザー入力座標を最も近いOSMnxノードにマッピング (近似)
@@ -225,7 +221,7 @@ def train_route(req: TrainRequest):
                     next_state = random.choice(neighbors) # Q値がない場合はランダム
 
             # 報酬計算: 距離を負の報酬に設定
-            # 💡 距離データを利用
+            # 距離データを利用
             # G[state][next_state][0]でエッジデータを取得。densify_curved_edgesがlengthを追加済み
             distance = G[state][next_state][0].get("length", 1) 
             reward = -distance 
@@ -274,7 +270,7 @@ def train_route(req: TrainRequest):
         print("Q学習による経路復元に失敗。NetworkXの最短パスにフォールバックします。")
         try:
             # NetworkXで最短パス (ダイクストラ法) を計算
-            # 💡 weight="length" を使用することで、曲線詳細化後の正確な距離を使う
+            # weight="length" を使用することで、曲線詳細化後の正確な距離を使う
             path = nx.shortest_path(G, source=start_node_id, target=goal_node_id, weight="length")
         except nx.NetworkXNoPath:
             return JSONResponse({"error": "No path found between the selected points"}, status_code=404)
@@ -285,7 +281,7 @@ def train_route(req: TrainRequest):
     coords = [{"lat": G.nodes[n]["y"], "lng": G.nodes[n]["x"]} for n in path]
 
     # 距離合計
-    # 💡 haversine_distance を使用し、存在しないエッジ（フォールバック時など）に対応
+    # haversine_distance を使用し、存在しないエッジ（フォールバック時など）に対応
     dist = sum(
         G[u][v][0].get("length", haversine_distance(G.nodes[u]["y"], G.nodes[u]["x"], G.nodes[v]["y"], G.nodes[v]["x"]))
         for u, v in zip(path[:-1], path[1:])
